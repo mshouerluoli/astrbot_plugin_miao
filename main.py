@@ -19,6 +19,18 @@ class MyPlugin(Star):
         message_chain = event.get_messages() # 用户所发的消息的消息链 # from astrbot.api.message_components import *
         logger.info(message_chain)
         yield event.plain_result(f"Hello, {user_name}, 你发了 {message_str}!") # 发送一条纯文本消息
+    
+        
+    @filter.event_message_type(filter.EventMessageType.PRIVATE_MESSAGE)
+    async def on_private_message(self, event: AstrMessageEvent):
+        message_str = event.message_str # 获取消息的纯文本内容
+        yield event.plain_result("收到了一条私聊消息。")
+
+    @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
+    async def on_group_message(self, event: AstrMessageEvent):
+        message_str = event.message_str # 获取消息的纯文本内容
+        yield event.plain_result("收到了一条群聊消息。")
+
 
     async def terminate(self):
         """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""

@@ -24,7 +24,7 @@ class MyPlugin(Star):
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP | filter.PlatformAdapterType.QQOFFICIAL)
     async def on_aiocqhttp(self, event: AstrMessageEvent):
         '''只接收 AIOCQHTTP 和 QQOFFICIAL 的消息'''
-        Comp.Video.fromURL(url="http://api.yaohud.cn/api/model/tts2/indextts2_69561f9e4b512.mp4")
+        Comp.Video.fromURL(url="http://api.yaohud.cn/api/model/tts2/indextts2_69561f9e4b512.mp3")
         yield event.plain_result("收到了一条信息喵")
 
     async def terminate(self):

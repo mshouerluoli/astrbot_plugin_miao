@@ -21,10 +21,10 @@ class MyPlugin(Star):
         yield event.plain_result(f"Hello, {user_name}, 你发了 {message_str}!") # 发送一条纯文本消息
     
         
-    @filter.event_message_type(filter.PlatformAdapterType.PRIVATE_MESSAGE)
-    async def on_private_message(self, event: AstrMessageEvent):
+    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP | filter.PlatformAdapterType.QQOFFICIAL)
+    async def on_aiocqhttp(self, event: AstrMessageEvent):
+        '''只接收 AIOCQHTTP 和 QQOFFICIAL 的消息'''
         yield event.plain_result("收到了一条信息")
-
 
     async def terminate(self):
         """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""

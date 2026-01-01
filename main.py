@@ -3,7 +3,7 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
 from astrbot.api.message_components import Node, Plain, Image
 
-@register("astrbot_plugin_miao", "miao", "AstrBot 插件示例", "v0.0.3")
+@register("astrbot_plugin_miao", "miao", "AstrBot 插件示例", "v0.0.4")
 class MyPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -21,20 +21,29 @@ class MyPlugin(Star):
         logger.info(message_chain)
         yield event.plain_result(f"Hello, {user_name}, 你发了 {message_str}!") # 发送一条纯文本消息
     
-        #群和私聊都可以触发该指令 引用回复
-    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP | filter.PlatformAdapterType.QQOFFICIAL)
-    async def on_aiocqhttp(self, event: AstrMessageEvent):
-        '''只接收 AIOCQHTTP 和 QQOFFICIAL 的消息'''
-        yield event.plain_result("收到了一条信息喵")
 
-        node = Node(
-            uin=1969207693,
-            name="风",
-            content=[
-                Plain("我是群里的绒布球")
-            ]
-        )
-        yield event.chain_result([node])
+    @filter.command("伪造聊天记录")
+    def 伪造聊天记录(self, event: AstrMessageEvent, a: int, b):
+        
+        yield event.plain_result(f"参数 {a , b}")
+
+
+
+
+    #群和私聊都可以触发该指令 引用回复
+    # @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP | filter.PlatformAdapterType.QQOFFICIAL)
+    # async def on_aiocqhttp(self, event: AstrMessageEvent):
+    #     '''只接收 AIOCQHTTP 和 QQOFFICIAL 的消息'''
+    #     yield event.plain_result("收到了一条信息喵")
+
+    #     node = Node(
+    #         uin=1969207693,
+    #         name="风",
+    #         content=[
+    #             Plain("我是群里的绒布球")
+    #         ]
+    #     )
+    #     yield event.chain_result([node])
 
 
     async def terminate(self):

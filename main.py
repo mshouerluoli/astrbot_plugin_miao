@@ -2,7 +2,7 @@ from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
 
-@register("astrbot_plugin_miao", "miao", "AstrBot 插件示例", "v1.1.1")
+@register("astrbot_plugin_miao", "miao", "AstrBot 插件示例", "v1.1.2")
 class MyPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)

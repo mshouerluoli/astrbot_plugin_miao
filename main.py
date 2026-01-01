@@ -22,8 +22,7 @@ class MyPlugin(Star):
     
         
     @filter.event_message_type(filter.PlatformAdapterType.PRIVATE_MESSAGE  | filter.PlatformAdapterType.GROUP_MESSAGE)
-    async def on_aiocqhttp(self, event: AstrMessageEvent):
-        '''只接收 PRIVATE_MESSAGE 和 GROUP_MESSAGE 的消息'''
+    async def on_private_message(self, event: AstrMessageEvent):
         yield event.plain_result("收到了一条信息")
 
 

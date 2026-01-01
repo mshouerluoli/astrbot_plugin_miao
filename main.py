@@ -21,10 +21,10 @@ class MyPlugin(Star):
         yield event.plain_result(f"Hello, {user_name}, 你发了 {message_str}!") # 发送一条纯文本消息
     
         
-@filter.event_message_type(filter.PlatformAdapterType.PRIVATE_MESSAGE  | filter.PlatformAdapterType.GROUP_MESSAGE)
-async def on_aiocqhttp(self, event: AstrMessageEvent):
-    '''只接收 PRIVATE_MESSAGE 和 GROUP_MESSAGE 的消息'''
-    yield event.plain_result("收到了一条信息")
+    @filter.event_message_type(filter.PlatformAdapterType.PRIVATE_MESSAGE  | filter.PlatformAdapterType.GROUP_MESSAGE)
+    async def on_aiocqhttp(self, event: AstrMessageEvent):
+        '''只接收 PRIVATE_MESSAGE 和 GROUP_MESSAGE 的消息'''
+        yield event.plain_result("收到了一条信息")
 
 
     async def terminate(self):

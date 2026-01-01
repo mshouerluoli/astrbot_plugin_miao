@@ -5,7 +5,7 @@ from astrbot.api.message_components import Node, Plain, Image
 
 
 
-@register("astrbot_plugin_miao", "miao", "AstrBot 插件示例", "v0.0.6")
+@register("astrbot_plugin_miao", "miao", "AstrBot 插件示例", "v0.0.7")
 class MyPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -34,15 +34,21 @@ class MyPlugin(Star):
         # yield event.plain_result("收到了一条信息喵")
         message_str = event.message_str
         result = message_str.split()
-        yield event.plain_result(f"命令 ",result[0],"QQ ",result[1],"昵称 ",result[2],"内容 ",result[3])
-        # node = Node(
-        #     uin=1969207693,
-        #     name="风",
-        #     content=[
-        #         Plain("我是群里的绒布球")
-        #     ]
-        # )
-        # yield event.chain_result([node])
+        if result[0] == "伪造聊天纪录":
+            if result[1] != 2824779102:
+                #yield event.plain_result(f"命令 {result[0]} QQ {result[1]} 昵称 {result[2]} 内容 {result[3]}")
+                node = Node(
+                    uin=result[1],
+                    name=result[2],
+                    content=[
+                        Plain(result[3])
+                    ]
+                    )
+                yield event.chain_result([node])
+
+
+        
+
 
 
     async def terminate(self):

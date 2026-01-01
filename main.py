@@ -21,7 +21,7 @@ class MyPlugin(Star):
         yield event.plain_result(f"Hello, {user_name}, 你发了 {message_str}!") # 发送一条纯文本消息
     
         
-    @filter.event_message_type(filter.PlatformAdapterType.PRIVATE_MESSAGE  | filter.PlatformAdapterType.GROUP_MESSAGE)
+    @filter.event_message_type(filter.PlatformAdapterType.PRIVATE_MESSAGE)
     async def on_private_message(self, event: AstrMessageEvent):
         yield event.plain_result("收到了一条信息")
 

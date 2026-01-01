@@ -3,7 +3,7 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
 from astrbot.api.message_components import Node, Plain, Image
 
-@register("astrbot_plugin_miao", "miao", "AstrBot 插件示例", "v0.0.4")
+@register("astrbot_plugin_miao", "miao", "AstrBot 插件示例", "v0.0.5")
 class MyPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -23,9 +23,9 @@ class MyPlugin(Star):
     
 
     @filter.command("伪造聊天记录")
-    def 伪造聊天记录(self, event: AstrMessageEvent, a: int, b):
+    def 伪造聊天记录(self, event: AstrMessageEvent, a: int, b:str):
         
-        yield event.plain_result(f"参数 {a , b}")
+        yield event.plain_result(f"参数 a {a} b {b}")
 
 
 

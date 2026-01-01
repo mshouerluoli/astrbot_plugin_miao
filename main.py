@@ -2,7 +2,7 @@ from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
 
-@register("astrbot_plugin_miao", "miao", "AstrBot 插件示例", "v1.1.2")
+@register("astrbot_plugin_miao", "miao", "AstrBot 插件示例", "v0.0.0")
 class MyPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -20,10 +20,11 @@ class MyPlugin(Star):
         logger.info(message_chain)
         yield event.plain_result(f"Hello, {user_name}, 你发了 {message_str}!") # 发送一条纯文本消息
     
-        
+        #群和私聊都可以触发该指令 引用回复
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP | filter.PlatformAdapterType.QQOFFICIAL)
     async def on_aiocqhttp(self, event: AstrMessageEvent):
         '''只接收 AIOCQHTTP 和 QQOFFICIAL 的消息'''
+        yield event.image_result("http://api.yaohud.cn/api/model/tts2/indextts2_69561f9e4b512.mp3")
         yield event.plain_result("收到了一条信息")
 
     async def terminate(self):

@@ -1,15 +1,18 @@
 from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, register
-from astrbot.api import logger
+from astrbot.api import logger,AstrBotConfig
 from astrbot.api.message_components import Node, Plain, Image
 import astrbot.api.message_components as Comp
+
 import re
 
 
 @register("astrbot_plugin_miao", "miao", "AstrBot 插件示例", "v0.0.7")
 class MyPlugin(Star):
-    def __init__(self, context: Context):
+    def __init__(self, context: Context,config: AstrBotConfig):
         super().__init__(context)
+        self.config = config
+
 
     async def initialize(self):
         """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
@@ -26,14 +29,13 @@ class MyPlugin(Star):
     
 
 
-
     #event.get_sender_id() = QQ号
     #群和私聊都可以触发该指令 引用回复
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP | filter.PlatformAdapterType.QQOFFICIAL)
     async def on_aiocqhttp(self, event: AstrMessageEvent):
         '''只接收 AIOCQHTTP 和 QQOFFICIAL 的消息'''
         message_str = event.message_str
-
+        
         pattern = r'(?=.*胡桃)(?=.*http)'
         if re.search(pattern, message_str, re.DOTALL):
             chain = [

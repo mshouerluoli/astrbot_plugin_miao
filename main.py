@@ -34,11 +34,10 @@ class MyPlugin(Star):
         '''只接收 AIOCQHTTP 和 QQOFFICIAL 的消息'''
         message_str = event.message_str
 
-
         pattern = r'(?=.*胡桃)(?=.*http)'
         if re.search(pattern, message_str, re.DOTALL):
             chain = [
-                Comp.At(qq=1969207693), # At 消息发送者
+                Comp.At(qq=1969207693),
                 Comp.Plain(" 发现胡桃链接,嗷~"),
             ]
             yield event.chain_result(chain)

@@ -2,7 +2,8 @@ from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
 from astrbot.api.message_components import Node, Plain, Image
-
+import astrbot.api.message_components as Comp
+import re
 
 
 @register("astrbot_plugin_miao", "miao", "AstrBot 插件示例", "v0.0.7")
@@ -26,14 +27,27 @@ class MyPlugin(Star):
 
 
 
-
+    #event.get_sender_id() = QQ号
     #群和私聊都可以触发该指令 引用回复
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP | filter.PlatformAdapterType.QQOFFICIAL)
     async def on_aiocqhttp(self, event: AstrMessageEvent):
         '''只接收 AIOCQHTTP 和 QQOFFICIAL 的消息'''
         message_str = event.message_str
+
+
+        pattern = r'(?=.*胡桃)(?=.*http)'
+        if re.search(pattern, message_str, re.DOTALL):
+            chain = [
+                Comp.At(qq=1969207693), # At 消息发送者
+                Comp.Plain(" 发现胡桃链接,嗷~"),
+            ]
+            yield event.chain_result(chain)
+            #yield event.plain_result(f"发现胡桃链接,嗷~ {event.get_sender_id()}")
+
+
+
+
         result = message_str.split()
-        
         # 判断数组数量是否大于等于2（索引0和1都需要存在）
         if len(result) >= 2 and result[0] == "伪造聊天记录":
             if result[1] != "2824779102":

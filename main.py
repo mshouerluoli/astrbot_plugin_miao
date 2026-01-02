@@ -38,11 +38,15 @@ class MyPlugin(Star):
         
         pattern = r'(?=.*胡桃)(?=.*http)'
         if re.search(pattern, message_str, re.DOTALL):
-            chain = [
-                Comp.At(qq=1969207693),
-                Comp.Plain(" 发现胡桃链接,嗷~"),
-            ]
-            yield event.chain_result(chain)
+
+            hu_tao_config = self.config.get("HuTao_config")
+            qq_value = hu_tao_config.get("QQ")  # 假设键为"value"
+            yield event.plain_result(f"发现胡桃链接,嗷~ {qq_value}")
+            # chain = [
+            #     Comp.At(qq=1969207693),
+            #     Comp.Plain(" 发现胡桃链接,嗷~"),
+            # ]
+            # yield event.chain_result(chain)
             #yield event.plain_result(f"发现胡桃链接,嗷~ {event.get_sender_id()}")
 
 

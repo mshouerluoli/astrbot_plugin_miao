@@ -1,12 +1,7 @@
 {
-  "token": {
-    "description": "这是miao测试配置",
-    "type": "string"
-  },
   "HuTao_config": {
     "description": "QQ",
     "type": "int",
-    "hint": "提示信息"
+    "hint": "检测到胡桃链接自动艾特他"
     }
-
 }

@@ -1,8 +1,8 @@
-# helloworld
+# miao
 
-AstrBot 插件模板
+AstrBot 的插件模板
 
-A template plugin for AstrBot plugin feature
+用来学习插件
 
 # 支持
 

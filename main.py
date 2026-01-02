@@ -28,23 +28,33 @@ class MyPlugin(Star):
 
 
     #群和私聊都可以触发该指令 引用回复
-    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP | filter.PlatformAdapterType.QQOFFICIAL)
-    async def on_aiocqhttp(self, event: AstrMessageEvent):
-        '''只接收 AIOCQHTTP 和 QQOFFICIAL 的消息'''
-        # yield event.plain_result("收到了一条信息喵")
-        message_str = event.message_str
-        result = message_str.split()
-        if result[0] == "伪造聊天纪录":
-            if result[1] != 2824779102:
-                #yield event.plain_result(f"命令 {result[0]} QQ {result[1]} 昵称 {result[2]} 内容 {result[3]}")
+@filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP | filter.PlatformAdapterType.QQOFFICIAL)
+async def on_aiocqhttp(self, event: AstrMessageEvent):
+    '''只接收 AIOCQHTTP 和 QQOFFICIAL 的消息'''
+    message_str = event.message_str
+    result = message_str.split()
+    
+    # 判断数组数量是否大于等于2（索引0和1都需要存在）
+    if len(result) >= 2 and result[0] == "伪造聊天记录":
+        if result[1] != "2824779102":
+            # 确保有足够的数据来构建node
+            if len(result) >= 4:
+                # 合并第4个及之后的内容作为聊天内容（因为内容可能有空格）
+                content = ' '.join(result[3:])
                 node = Node(
                     uin=result[1],
                     name=result[2],
                     content=[
-                        Plain(result[3])
+                        Plain(content)
                     ]
-                    )
+                )
                 yield event.chain_result([node])
+            else:
+                # 参数不足时的提示
+                yield event.plain_result("参数不足！正确格式：伪造聊天记录 QQ号 昵称 内容")
+        else:
+            # 如果QQ号等于2824779102的情况
+            yield event.plain_result("不能伪造这个QQ号的聊天记录")
 
 
         

@@ -2,6 +2,7 @@
   "HuTao_config": {
     "description": "QQ",
     "type": "int",
-    "hint": "检测到胡桃链接自动艾特他"
+    "hint": "检测到胡桃链接自动艾特他",
+    "default": 1969207693
     }
 }

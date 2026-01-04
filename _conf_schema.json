@@ -3,17 +3,17 @@
         "description": "QQ",
         "type": "int",
         "hint": "检测到胡桃链接自动艾特他",
-        "default": 1969207693
+        "default": 0
     },
     "Master": {
         "description": "主人QQ",
         "type": "int",
         "hint": "打卡通知的QQ",
-        "default": 2824779102
+        "default": 0
     },
     "send_like_list": {
         "type": "list",
         "description": "自动点赞的QQ",
-        "default": [2824779102]
+        "default": [0]
     }
 }

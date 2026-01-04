@@ -76,9 +76,7 @@ class MiaoPlugin(Star):
 
     async def initialize(self):
         """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
-        # 先设置任务
         self.投递任务()
-        # 然后才启动调度器
         self.scheduler.start()
         logger.info("[Miao] APScheduler 定时任务")
 

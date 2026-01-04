@@ -482,7 +482,7 @@ class MiaoPlugin(Star):
 
 
     @filter.command("添加点赞列表")
-    async def 添加点赞列表(self, event: AstrMessageEvent,new_user: str):
+    async def add_user_to_likes(self, event: AstrMessageEvent,new_user: str):
         """格式：添加点赞列表 QQ"""
         if not await self.is_Master(event.get_sender_id()):
             yield event.plain_result("只有主人才能使用此命令喵~")
@@ -537,7 +537,7 @@ class MiaoPlugin(Star):
     
 
     @filter.command("原神卡池")
-    async def 原神卡池(self, event: AstrMessageEvent):
+    async def genshin_gacha_pools(self, event: AstrMessageEvent):
         """格式：原神卡池"""
         nodes_list = []
         try:

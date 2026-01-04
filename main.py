@@ -109,7 +109,7 @@ async def tts_request(
     result = {}
     
     try:
-        timeout = aiohttp.ClientTimeout(total=30)
+        timeout = aiohttp.ClientTimeout(total=60)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.get(api_url, params=params) as response:
                 response_text = await response.text()

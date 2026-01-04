@@ -201,8 +201,8 @@ class MiaoPlugin(Star):
             logger.error(f"[点赞] 处理出错: {e}")
 
     async def 每天任务(self, job=None):
-          self.打卡任务(self)
-          self.点赞任务(self)
+          await self.打卡任务(self)
+          await self.点赞任务(self)
 
 
 
@@ -441,7 +441,7 @@ class MiaoPlugin(Star):
     async def 前瞻兑换码(self, event: AstrMessageEvent, Gamename:str):
         """格式：前瞻兑换码 游戏名""" 
         if Gamename:
-            code ,cover = get_qianzhanduihuanma(Gamename)
+            code ,cover = await get_qianzhanduihuanma(Gamename)
             if code:
                     lines = code.rstrip().split('\n')
                     lines[-1] = "By 你的影月月" #替换最后一行的url

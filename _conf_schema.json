@@ -8,17 +8,12 @@
     "Master": {
         "description": "主人QQ",
         "type": "int",
-        "hint": "打卡通知的QQ",
+        "hint": "最重要的",
         "default": 0
     },
     "send_like_list": {
         "type": "list",
         "description": "自动点赞的QQ",
-        "default": [0]
-    },
-    "yaohud_Api_list": {
-        "type": "list",
-        "description": "妖狐Api密钥",
         "default": [0]
     }
 }

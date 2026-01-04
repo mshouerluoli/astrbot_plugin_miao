@@ -1,7 +1,7 @@
 from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger,AstrBotConfig
-from astrbot.api.message_components import Node, Plain, Image
+from astrbot.api.message_components import Node, Plain, Nodes, Image as CompImage
 import astrbot.api.message_components as Comp
 import urllib.request
 import urllib.parse
@@ -16,6 +16,10 @@ from astrbot.core import FileTokenService
 from datetime import datetime
 from astrbot.core.message.components import Record, File
 from typing import Optional, Dict, Any
+import tempfile
+import wave
+from pydub import AudioSegment
+
 
 def get_badge_text(item,a:str):
     """安全地从 item 中提取 badge_text"""
@@ -81,35 +85,26 @@ async def get_preview_redeem_code(gamename: str):
 
     return None, None
 
-async def tts_request(
+async def tts(
     text: str,
-    voice: str = "胡桃",
-    key: str = "SqGWZxWJxEWagRFxkqB",
-) -> Dict[str, Any]:
-    """
-    使用aiohttp访问TTS API
-    
-    Args:
-        text: 要转换的文本
-        voice: 声音类型（默认为胡桃）
-        key: API密钥
-        api_url: API地址
-    
-    Returns:
-        dict: 包含状态码和数据的字典
-        - code=200时: {'code': 200, 'url': '音频URL地址'}
-        - code=400或其他错误时: {'code': 状态码, 'msg': '错误信息'}
-    """
+    speaker: str = "派蒙",
+    length: float = 1.0,
+    noise: float = 0.667,
+    noisew: float = 0.8
+) -> str:
+    """异步TTS函数，自动生成临时WAV文件并返回完整路径"""
+    api_url = "http://117.72.170.58:8881/api/"
     params = {
-        "key": key,
-        "voice": voice,
-        "text": text
+        "text": text,
+        "speaker": speaker,
+        "length": str(length),
+        "noise": str(noise),
+        "noisew": str(noisew),
     }
-    api_url = "https://api.yaohud.cn/api/model/index_tts2"
     result = {}
     
     try:
-        timeout = aiohttp.ClientTimeout(total=60)
+        timeout = aiohttp.ClientTimeout(total=300)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.get(api_url, params=params) as response:
                 response_text = await response.text()
@@ -120,19 +115,12 @@ async def tts_request(
                     if code == 200:
                         data = response_data.get("data", {})
                         if isinstance(data, dict):
-                            inner_data = data.get("data", {})
-                            if isinstance(inner_data, dict):
-                                url = inner_data.get("url")
-                                if url:
-                                    result["url"] = url
-                                    result["text"] = inner_data.get("text", "")
-                                    result["voice"] = inner_data.get("voice", "")
-                                    result["format"] = inner_data.get("format", "")
-                                else:
-                                    result["msg"] = "响应数据中没有找到URL"
-                                    result["code"] = 500
+                            url = data.get("url")
+                            if url:
+                                result["url"] = url
+                                result["msg"] = "生成成功"
                             else:
-                                result["msg"] = "响应数据格式错误"
+                                result["msg"] = "响应数据中没有找到URL"
                                 result["code"] = 500
                         else:
                             result["msg"] = "响应数据格式错误"
@@ -158,6 +146,44 @@ async def tts_request(
     
     return result
 
+
+
+async def fetch_gacha_pool():
+    """获取原神祈愿池数据"""
+    url = "https://api.suyanw.cn/api/mihoyo_ys_pool.php"
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    
+                    # 检查返回状态
+                    if data.get("code") == 1:
+                        activities = data.get("data", [])
+                        return activities
+
+                    else:
+                        logger.info(f"API返回错误: {data.get('text')}")
+                        return []
+                else:
+                    logger.info(f"HTTP请求失败，状态码: {response.status}")
+                    return []
+                    
+    except aiohttp.ClientError as e:
+        logger.info(f"网络请求错误: {e}")
+        return []
+    except asyncio.TimeoutError:
+        logger.info("请求超时")
+        return []
+    except json.JSONDecodeError as e:
+        logger.info(f"JSON解析错误: {e}")
+        return []
+    except Exception as e:
+        logger.info(f"其他错误: {e}")
+        return []
+
+
 @register("astrbot_plugin_miao", "miao", "一个轻量 AstrBot 插件，支持每日群打卡与批量点赞、抓取前瞻兑换码并附图、生成演示聊天节点以及检测“胡桃 + 链接”并提醒管理员。", "v0.0.7")
 class MiaoPlugin(Star):
     def __init__(self, context: Context,config: AstrBotConfig):
@@ -173,7 +199,9 @@ class MiaoPlugin(Star):
         logger.info(f"[Miao] bot_instance{self.bot_instance}")
 
 
-
+    async def is_Master(self,QQ_:int):
+        qq_value = self.config.get("Master", 0)
+        return QQ_ == qq_value
 
     async def initialize(self):
         """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
@@ -277,7 +305,7 @@ class MiaoPlugin(Star):
                     fail_count += 1
         
             # 添加统计信息
-            out += f"\n📊 统计：成功 {success_count} 个，失败 {fail_count} 个"
+            out += f"📊 统计：成功 {success_count} 个，失败 {fail_count} 个"
         
             # 发送给管理员
             master_qq = self.config.get("Master", 0)
@@ -453,6 +481,33 @@ class MiaoPlugin(Star):
         yield event.plain_result(result)
 
 
+    @filter.command("添加点赞列表")
+    async def 添加点赞列表(self, event: AstrMessageEvent,new_user: str):
+        """格式：添加点赞列表 QQ"""
+        if not await self.is_Master(event.get_sender_id()):
+            yield event.plain_result("只有主人才能使用此命令喵~")
+            return
+        # 获取当前列表
+        send_like_list = self.config.get("send_like_list", [])
+
+        try:
+             user_id = int(re.search(r'\d+', new_user).group())
+        except (AttributeError, ValueError):
+             user_id = 0
+
+        # 如果用户不存在于列表中，则添加
+        if user_id not in send_like_list:
+            send_like_list.append(user_id)
+            yield event.chain_result([Comp.Plain(f"已添加[{user_id}]到点赞列表")])
+            logger.info(f"已添加 {user_id} 到 send_like_list")
+        else:
+            logger.info(f"{user_id} 已在列表中")
+        
+        self.config["send_like_list"] = send_like_list
+        self.config.save_config()
+    
+
+
     @filter.regex(r'(?=.*胡桃)(?=.*http)')
     async def Hutao(self, event: AstrMessageEvent):
         """检测到胡桃链接回复""" 
@@ -467,39 +522,77 @@ class MiaoPlugin(Star):
     @filter.command("生成语音")
     async def generate_voice(self, event: AstrMessageEvent, Avatar: str, text: str):
         """格式：生成语音 内容"""
-        yaohud_Api_list = self.config.get("yaohud_Api_list", [])
-        if not yaohud_Api_list:
-            chain = [
-                Comp.Plain(f"没有妖狐密钥喵~"),
-            ]
-            yield event.chain_result(chain)
-            return
-    
-        chain = [
-            Comp.Plain(f"请稍等片刻喵~"),
-        ]
-        yield event.chain_result(chain)
-    
 
-    
-        for yaohud_Api_key in yaohud_Api_list:
-            result = await tts_request(text, Avatar, yaohud_Api_key)
+        yield event.chain_result([Comp.Plain("请稍等片刻喵~")])
+
+        result = await tts(text, Avatar)
         
-            if result.get("code") == 200:
-                await event.send(event.chain_result([Record.fromURL(result.get("url"))]))
-                logger.info(f"[生成语音] key{yaohud_Api_key} 成功")
-                return
-            else:
+        if result.get("code") == 200:
+            await event.send(event.chain_result([Record.fromURL(result.get("url"))]))
+            logger.info(f"[生成语音] 成功")
+            return
+        else:
 
-                logger.info(f"[生成语音] key{yaohud_Api_key} 失败: {result.get('msg')}")
+            logger.info(f"[生成语音] 失败: {result.get('msg')}")
     
 
-        chain = [
-            Comp.Plain(f"所有密钥都失败了喵~ "),
-        ]
-        yield event.chain_result(chain)
-
-
+    @filter.command("原神卡池")
+    async def 原神卡池(self, event: AstrMessageEvent):
+        """格式：原神卡池"""
+        nodes_list = []
+        try:
+            activities = await fetch_gacha_pool()
+            sender_id = event.get_sender_id()
+        
+            info_node = Node(
+                uin=sender_id,
+                name="原神祈愿助手",
+                content=[Plain("📢 当前原神祈愿池信息 📢")]
+            )
+            nodes_list.append(info_node)
+        
+            for i, activity in enumerate(activities, 1):
+                title = activity["title"]
+                pool_items = activity["pool"]
+                start_time = activity["start_time"]
+                end_time = activity["end_time"]
+            
+                # 构建节点内容
+                content_parts = [
+                    Plain(f"🎯 祈愿池{i}：{title}\n"),
+                    Plain(f"⏰ 活动时间：{start_time} 至 {end_time}\n"),
+                ]
+                for j, item in enumerate(pool_items, 1):
+                    try:
+                        icon_url = item["icon"]
+                        content_parts.append(CompImage.fromURL(icon_url))
+                    except Exception as e:
+                        logger.debug(f"添加图片失败: {e}")
+                        content_parts.append(Plain(f"  图标{j}：[图片加载失败]\n"))
+            
+                # 创建节点
+                node = Node(
+                    uin=sender_id,
+                    name="原神祈愿助手",
+                    content=content_parts
+                )
+                nodes_list.append(node)
+        
+            # 创建最后一个节点：总结节点
+            summary_node = Node(
+                uin=sender_id,
+                name="原神祈愿助手",
+                content=[Plain(f"📊 当前共有 {len(activities)} 个祈愿池活动\n✨ 祝大家都能抽到想要的角色和武器！")]
+            )
+            nodes_list.append(summary_node)
+        
+            nodes = Nodes(nodes=nodes_list)
+            yield event.chain_result([nodes])
+        
+        except Exception as e:
+            logger.error(f"获取原神卡池信息失败: {e}")
+            yield event.chain_result([Plain("获取原神卡池信息失败，请稍后重试！")])
+    
     @filter.command("前瞻兑换码")
     async def preview_redeem_code(self, event: AstrMessageEvent, game_name: str):
         """格式：前瞻兑换码 游戏名"""

@@ -10,6 +10,7 @@ import random
 import asyncio
 import re
 import os
+import aiohttp
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from astrbot.core import FileTokenService
 from datetime import datetime
@@ -21,62 +22,85 @@ def get_badge_text(item,a:str):
     except AttributeError:
         return None
 
-def get_qianzhanduihuanma(gamename:str):
-    url = "https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space/search?host_mid=431073645&page=1&offset=&keyword=%E5%89%8D%E7%9E%BB"
-    try:
-        # 发送请求
-        req = urllib.request.Request(url)
-        req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/69.0.3497.100 Safari/537.36')
-        with urllib.request.urlopen(req) as response:
-            data = response.read().decode('utf-8')
-            json_data = json.loads(data)
-            badge_text = None
-            cover_url = None
-            if json_data.get('data') and json_data['data'].get('items'):
-                items_list = json_data['data']['items']
-                if items_list:
+async def get_preview_redeem_code(gamename: str):
+    """Fetch preview redeem code and cover URL for a game from Bilibili asynchronously.
+
+    Returns a tuple (desc, cover_url) or (None, None) on failure.
+    """
+    url = (
+        "https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space/search"
+        "?host_mid=431073645&page=1&offset=&keyword=%E5%89%8D%E7%9E%BB"
+    )
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/69.0.3497.100 Safari/537.36"
+        )
+    }
+
+    retries = 3
+    timeout_seconds = 8
+
+    escaped = re.escape(gamename)
+
+    for attempt in range(1, retries + 1):
+        try:
+            timeout = aiohttp.ClientTimeout(total=timeout_seconds)
+            async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
+                async with session.get(url) as resp:
+                    if resp.status != 200:
+                        logger.warning(f"[get_preview_redeem_code] HTTP {resp.status} (attempt {attempt})")
+                        continue
+                    text = await resp.text()
+                    try:
+                        json_data = json.loads(text)
+                    except Exception as e:
+                        logger.warning(f"[get_preview_redeem_code] JSON parse error: {e}")
+                        return None, None
+
+                    items_list = json_data.get("data", {}).get("items", []) or []
                     for item in items_list:
-                        title = get_badge_text(item,"title")
-                        pattern = r'(?=.*)' + gamename
-                        if re.search(pattern, title, re.DOTALL):
-                            badge_text=get_badge_text(item,"desc")
-                            cover_url=get_badge_text(item,"cover")
-                            break
+                        title = get_badge_text(item, "title") or ""
+                        if re.search(escaped, title, re.IGNORECASE):
+                            desc = get_badge_text(item, "desc")
+                            cover = get_badge_text(item, "cover")
+                            return desc, cover
+                    return None, None
 
+        except asyncio.TimeoutError:
+            logger.warning(f"[get_preview_redeem_code] timeout (attempt {attempt})")
+            await asyncio.sleep(0.5 * attempt)
+            continue
+        except Exception as e:
+            logger.exception(f"[get_preview_redeem_code] request failed: {e}")
+            await asyncio.sleep(0.5 * attempt)
+            continue
 
-            
-            if badge_text:
-                return badge_text,cover_url
-            else:
-                return None, None
-                
-    except urllib.error.URLError as e:
-       return None, None
-    except json.JSONDecodeError as e:
-        return None, None
-    except Exception as e:
-        return None, None
+    return None, None
 
 
 
-@register("astrbot_plugin_miao", "miao", "AstrBot 插件示例", "v0.0.7")
+@register("astrbot_plugin_miao", "miao", "一个轻量 AstrBot 插件，支持每日群打卡与批量点赞、抓取前瞻兑换码并附图、生成演示聊天节点以及检测“胡桃 + 链接”并提醒管理员。", "v0.0.7")
 class MiaoPlugin(Star):
     def __init__(self, context: Context,config: AstrBotConfig):
         super().__init__(context)
         self.config = config
-
-
         self.bot_instance = None
+
 
         self.scheduler = AsyncIOScheduler()
         self.scheduler.configure({"apscheduler.timezone": "Asia/Shanghai"})
+
+
+        logger.info(f"[Miao] bot_instance{self.bot_instance}")
 
 
 
 
     async def initialize(self):
         """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
-        self.投递任务()
+        self.schedule_jobs()
         self.scheduler.start()
         logger.info("[Miao] APScheduler 定时任务")
 
@@ -86,7 +110,7 @@ class MiaoPlugin(Star):
     #    current_time = datetime.now().strftime('%Y/%m/%d %H:%M:%S')
     #    logger.info(f"{current_time} 一分钟 执行间隔任务")
 
-    async def 打卡任务(self):
+    async def checkin_task(self):
         try:
             bot = self.bot_instance
             if bot is None:
@@ -142,7 +166,7 @@ class MiaoPlugin(Star):
         except Exception as e:
             logger.error(f"[打卡] 处理出错: {e}")
  
-    async def 点赞任务(self):
+    async def like_task(self):
         try:
             send_like_list = self.config.get("send_like_list", [])
             bot = self.bot_instance
@@ -198,15 +222,15 @@ class MiaoPlugin(Star):
         except Exception as e:
             logger.error(f"[点赞] 处理出错: {e}")
 
-    async def 每天任务(self, job=None):
-          await self.打卡任务()
-          await self.点赞任务()
+    async def daily_tasks(self, job=None):
+          await self.checkin_task()
+          await self.like_task()
 
 
 
 
 
-    def 投递任务(self):
+    def schedule_jobs(self):
 
         # self.scheduler.add_job(
         #     self.每分任务,
@@ -217,7 +241,7 @@ class MiaoPlugin(Star):
         # logger.info("添加[每分任务]定时任务")
 
         self.scheduler.add_job(
-            self.每天任务,
+            self.daily_tasks,
             'cron',
             hour=0,
             minute=0,
@@ -227,7 +251,7 @@ class MiaoPlugin(Star):
 
     @filter.event_message_type(filter.EventMessageType.ALL, priority=999)
     async def _capture_bot_instance(self, event: AstrMessageEvent):
-        """捕获机器人实例和管理员ID"""
+        """捕获机器人实例"""
 
         if self.bot_instance is None and event.get_platform_name() == "aiocqhttp":
             try:
@@ -436,10 +460,10 @@ class MiaoPlugin(Star):
             yield event.chain_result(chain)
 
     @filter.command("前瞻兑换码")
-    async def 前瞻兑换码(self, event: AstrMessageEvent, Gamename:str):
-        """格式：前瞻兑换码 游戏名""" 
-        if Gamename:
-            code ,cover = await get_qianzhanduihuanma(Gamename)
+    async def preview_redeem_code(self, event: AstrMessageEvent, game_name: str):
+        """格式：前瞻兑换码 游戏名"""
+        if game_name:
+            code, cover = await get_preview_redeem_code(game_name)
             if code:
                     lines = code.rstrip().split('\n')
                     lines[-1] = "By 你的影月月" #替换最后一行的url
@@ -455,8 +479,8 @@ class MiaoPlugin(Star):
             yield event.plain_result("参数不足！正确格式：前瞻兑换码 游戏名")
         
     @filter.command("伪造聊天记录")#伪造聊天记录 2824779102 喵帕斯 123
-    async def 伪造聊天记录(self, event: AstrMessageEvent, QQ:int, Nice:str, txt:str):
-        """格式：伪造聊天记录 QQ号 昵称 内容""" 
+    async def fake_chat_record(self, event: AstrMessageEvent, QQ:int, Nice:str, txt:str):
+        """格式：伪造聊天记录 QQ号 昵称 内容"""
         qq_value = self.config.get("Master", 0)
 
         if QQ!= qq_value:

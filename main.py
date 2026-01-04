@@ -201,8 +201,8 @@ class MiaoPlugin(Star):
             logger.error(f"[点赞] 处理出错: {e}")
 
     async def 每天任务(self, job=None):
-          await self.打卡任务(self)
-          await self.点赞任务(self)
+          await self.打卡任务()
+          await self.点赞任务()
 
 
 

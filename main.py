@@ -459,7 +459,9 @@ class MiaoPlugin(Star):
     @filter.command("伪造聊天记录")#伪造聊天记录 2824779102 喵帕斯 123
     async def 伪造聊天记录(self, event: AstrMessageEvent, QQ:int, Nice:str, txt:str):
         """格式：伪造聊天记录 QQ号 昵称 内容""" 
-        if QQ!=2824779102:
+        qq_value = self.config.get("Master", 0)
+
+        if QQ!= qq_value:
             if Nice:
                 if txt:
                     node = Node(

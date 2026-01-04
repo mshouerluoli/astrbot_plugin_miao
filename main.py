@@ -9,6 +9,7 @@ import json
 import random
 import asyncio
 import re
+import os
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from astrbot.core import FileTokenService
 from datetime import datetime
@@ -72,6 +73,7 @@ class MiaoPlugin(Star):
 
 
 
+
     async def initialize(self):
         """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
         # 先设置任务
@@ -86,9 +88,7 @@ class MiaoPlugin(Star):
     #    current_time = datetime.now().strftime('%Y/%m/%d %H:%M:%S')
     #    logger.info(f"{current_time} 一分钟 执行间隔任务")
 
-   
-       # 定义一个每天任务    
-    async def 每天任务(self, job=None):
+    async def 打卡任务(self):
         try:
             bot = self.bot_instance
             if bot is None:
@@ -123,7 +123,7 @@ class MiaoPlugin(Star):
                     fail_count += 1
         
             # 添加统计信息
-            out += f"\n📊 统计：成功 {success_count} 个，失败 {fail_count} 个"
+            out += f"📊 统计：成功 {success_count} 个，失败 {fail_count} 个"
         
             # 发送给管理员
             qq_value = self.config.get("Master", 0)
@@ -143,6 +143,67 @@ class MiaoPlugin(Star):
                     logger.error(f"[打卡] 发送通知失败: {e}")
         except Exception as e:
             logger.error(f"[打卡] 处理出错: {e}")
+ 
+    async def 点赞任务(self):
+        try:
+            send_like_list = self.config.get("send_like_list", [])
+            bot = self.bot_instance
+            if bot is None:
+                logger.error("[Miao] bot_instance 未找到")
+                return
+
+            if not send_like_list:
+                logger.warning("[点赞] 没有配置需要点赞的QQ号")
+                return
+        
+            out = f"❤️ 自动点赞结果（共 {len(send_like_list)} 个用户）:\n"
+            success_count = 0
+            fail_count = 0
+        
+            for qq in send_like_list:
+                try:
+                    user_info = await bot.get_stranger_info(user_id=int(qq))
+                    username = user_info.get("nickname", "未知用户")
+                except Exception:
+                    username = "未知用户"
+        
+                try:
+                    # 假设 _like_single_user 返回 (success, message) 格式
+                    message = await self._like_single_user(bot, qq, username)
+                    out += f"✅ QQ: {qq}, 昵称: {username}\n"
+                    success_count += 1
+                except Exception as e:
+                    error_msg = str(e)
+                    out += f"❌ QQ: {qq}, 昵称: {username}\n   原因: {error_msg}\n"
+                    fail_count += 1
+        
+            # 添加统计信息
+            out += f"\n📊 统计：成功 {success_count} 个，失败 {fail_count} 个"
+        
+            # 发送给管理员
+            master_qq = self.config.get("Master", 0)
+            if master_qq != 0:
+                try:
+                    # 如果消息太长，进行截断
+                    if len(out) > 4000:
+                        out = out[:3900] + "\n...（消息过长已截断）"
+                    
+                    await bot.api.call_action(
+                        'send_private_msg',
+                        user_id=str(master_qq),
+                        message=out
+                    )
+                    logger.info(f"[点赞] 已发送通知给管理员 {master_qq}")
+                except Exception as e:
+                    logger.error(f"[点赞] 发送通知失败: {e}")
+                
+        except Exception as e:
+            logger.error(f"[点赞] 处理出错: {e}")
+
+    async def 每天任务(self, job=None):
+          self.打卡任务(self)
+          self.点赞任务(self)
+
 
 
 
@@ -169,6 +230,7 @@ class MiaoPlugin(Star):
     @filter.event_message_type(filter.EventMessageType.ALL, priority=999)
     async def _capture_bot_instance(self, event: AstrMessageEvent):
         """捕获机器人实例和管理员ID"""
+
         if self.bot_instance is None and event.get_platform_name() == "aiocqhttp":
             try:
                 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
@@ -309,60 +371,60 @@ class MiaoPlugin(Star):
         yield event.plain_result(result)
 
 
-    @filter.regex(r"^打卡$")
-    async def 打卡(self, event: AstrMessageEvent):
-        """测试机器人的打卡"""
-        try:
-            bot = self.bot_instance
-            group_list = await bot.get_group_list()
+    # @filter.regex(r"^打卡$")
+    # async def 打卡(self, event: AstrMessageEvent):
+    #     """测试机器人的打卡"""
+    #     try:
+    #         bot = self.bot_instance
+    #         group_list = await bot.get_group_list()
         
-            if not group_list:
-                logger.error("未找到任何群组")
-                return
+    #         if not group_list:
+    #             logger.error("未找到任何群组")
+    #             return
         
-            # 初始化输出
-            out = f"📋 打卡结果（共 {len(group_list)} 个群组）:\n\n"
-            success_count = 0
-            fail_count = 0
+    #         # 初始化输出
+    #         out = f"📋 打卡结果（共 {len(group_list)} 个群组）:\n\n"
+    #         success_count = 0
+    #         fail_count = 0
         
-            for group in group_list:
-                group_id = group['group_id']
-                group_name = group['group_name']
+    #         for group in group_list:
+    #             group_id = group['group_id']
+    #             group_name = group['group_name']
             
-                try:
-                    await bot.api.call_action(
-                        'send_group_sign',
-                        group_id=str(group_id)
-                    )
-                    out += f"✅ 群号: {group_id}, 群名: {group_name}\n"
-                    success_count += 1
+    #             try:
+    #                 await bot.api.call_action(
+    #                     'send_group_sign',
+    #                     group_id=str(group_id)
+    #                 )
+    #                 out += f"✅ 群号: {group_id}, 群名: {group_name}\n"
+    #                 success_count += 1
                 
-                except Exception as e:
-                    error_msg = str(e)
-                    out += f"❌ 群号: {group_id}, 群名: {group_name}\n   原因: {error_msg}\n"
-                    fail_count += 1
+    #             except Exception as e:
+    #                 error_msg = str(e)
+    #                 out += f"❌ 群号: {group_id}, 群名: {group_name}\n   原因: {error_msg}\n"
+    #                 fail_count += 1
         
-            # 添加统计信息
-            out += f"\n📊 统计：成功 {success_count} 个，失败 {fail_count} 个"
+    #         # 添加统计信息
+    #         out += f"\n📊 统计：成功 {success_count} 个，失败 {fail_count} 个"
         
-            # 发送给管理员
-            qq_value = self.config.get("Master", 0)
-            if qq_value != 0:
-                try:
-                    # 如果消息太长，进行截断
-                    if len(out) > 4000:
-                        out = out[:3900] + "\n...（消息过长已截断）"
+    #         # 发送给管理员
+    #         qq_value = self.config.get("Master", 0)
+    #         if qq_value != 0:
+    #             try:
+    #                 # 如果消息太长，进行截断
+    #                 if len(out) > 4000:
+    #                     out = out[:3900] + "\n...（消息过长已截断）"
                     
-                    await bot.api.call_action(
-                        'send_private_msg',
-                        user_id=str(qq_value),
-                        message=out
-                    )
-                    logger.info(f"[打卡] 已发送通知给管理员 {qq_value}")
-                except Exception as e:
-                    logger.error(f"[打卡] 发送通知失败: {e}")
-        except Exception as e:
-            logger.error(f"[打卡] 处理出错: {e}")
+    #                 await bot.api.call_action(
+    #                     'send_private_msg',
+    #                     user_id=str(qq_value),
+    #                     message=out
+    #                 )
+    #                 logger.info(f"[打卡] 已发送通知给管理员 {qq_value}")
+    #             except Exception as e:
+    #                 logger.error(f"[打卡] 发送通知失败: {e}")
+    #     except Exception as e:
+    #         logger.error(f"[打卡] 处理出错: {e}")
 
     @filter.regex(r'(?=.*胡桃)(?=.*http)')
     async def Hutao(self, event: AstrMessageEvent):

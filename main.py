@@ -14,6 +14,8 @@ import aiohttp
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from astrbot.core import FileTokenService
 from datetime import datetime
+from astrbot.core.message.components import Record, File
+from typing import Optional, Dict, Any
 
 def get_badge_text(item,a:str):
     """安全地从 item 中提取 badge_text"""
@@ -79,7 +81,82 @@ async def get_preview_redeem_code(gamename: str):
 
     return None, None
 
-
+async def tts_request(
+    text: str,
+    voice: str = "胡桃",
+    key: str = "SqGWZxWJxEWagRFxkqB",
+) -> Dict[str, Any]:
+    """
+    使用aiohttp访问TTS API
+    
+    Args:
+        text: 要转换的文本
+        voice: 声音类型（默认为胡桃）
+        key: API密钥
+        api_url: API地址
+    
+    Returns:
+        dict: 包含状态码和数据的字典
+        - code=200时: {'code': 200, 'url': '音频URL地址'}
+        - code=400或其他错误时: {'code': 状态码, 'msg': '错误信息'}
+    """
+    params = {
+        "key": key,
+        "voice": voice,
+        "text": text
+    }
+    api_url = "https://api.yaohud.cn/api/model/index_tts2"
+    result = {}
+    
+    try:
+        timeout = aiohttp.ClientTimeout(total=30)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(api_url, params=params) as response:
+                response_text = await response.text()
+                try:
+                    response_data = json.loads(response_text)
+                    code = response_data.get("code", 500)
+                    result["code"] = code
+                    if code == 200:
+                        data = response_data.get("data", {})
+                        if isinstance(data, dict):
+                            inner_data = data.get("data", {})
+                            if isinstance(inner_data, dict):
+                                url = inner_data.get("url")
+                                if url:
+                                    result["url"] = url
+                                    result["text"] = inner_data.get("text", "")
+                                    result["voice"] = inner_data.get("voice", "")
+                                    result["format"] = inner_data.get("format", "")
+                                else:
+                                    result["msg"] = "响应数据中没有找到URL"
+                                    result["code"] = 500
+                            else:
+                                result["msg"] = "响应数据格式错误"
+                                result["code"] = 500
+                        else:
+                            result["msg"] = "响应数据格式错误"
+                            result["code"] = 500
+                    else:
+                        result["msg"] = response_data.get("msg", "未知错误")
+                        if "exec_time" in response_data:
+                            result["exec_time"] = response_data["exec_time"]
+                            
+                except json.JSONDecodeError:
+                    result["code"] = 500
+                    result["msg"] = f"响应不是有效的JSON格式: {response_text[:100]}"
+                    
+    except aiohttp.ClientError as e:
+        result["code"] = 500
+        result["msg"] = f"网络请求错误: {e}"
+    except asyncio.TimeoutError:
+        result["code"] = 408
+        result["msg"] = "请求超时"
+    except Exception as e:
+        result["code"] = 500
+        result["msg"] = f"其他错误: {e}"
+    
+    return result
 
 @register("astrbot_plugin_miao", "miao", "一个轻量 AstrBot 插件，支持每日群打卡与批量点赞、抓取前瞻兑换码并附图、生成演示聊天节点以及检测“胡桃 + 链接”并提醒管理员。", "v0.0.7")
 class MiaoPlugin(Star):
@@ -386,6 +463,42 @@ class MiaoPlugin(Star):
                 Comp.Plain("发现胡桃链接,嗷~"),
             ]
             yield event.chain_result(chain)
+
+    @filter.command("生成语音")
+    async def generate_voice(self, event: AstrMessageEvent, Avatar: str, text: str):
+        """格式：生成语音 内容"""
+        yaohud_Api_list = self.config.get("yaohud_Api_list", [])
+        if not yaohud_Api_list:
+            chain = [
+                Comp.Plain(f"没有妖狐密钥喵~"),
+            ]
+            yield event.chain_result(chain)
+            return
+    
+        chain = [
+            Comp.Plain(f"请稍等片刻喵~"),
+        ]
+        yield event.chain_result(chain)
+    
+
+    
+        for yaohud_Api_key in yaohud_Api_list:
+            result = await tts_request(text, Avatar, yaohud_Api_key)
+        
+            if result.get("code") == 200:
+                await event.send(event.chain_result([Record.fromURL(result.get("url"))]))
+                logger.info(f"[生成语音] key{yaohud_Api_key} 成功")
+                return
+            else:
+
+                logger.info(f"[生成语音] key{yaohud_Api_key} 失败: {result.get('msg')}")
+    
+
+        chain = [
+            Comp.Plain(f"所有密钥都失败了喵~ "),
+        ]
+        yield event.chain_result(chain)
+
 
     @filter.command("前瞻兑换码")
     async def preview_redeem_code(self, event: AstrMessageEvent, game_name: str):

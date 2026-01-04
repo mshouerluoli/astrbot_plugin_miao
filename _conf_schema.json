@@ -15,5 +15,10 @@
         "type": "list",
         "description": "自动点赞的QQ",
         "default": [0]
+    },
+    "yaohud_Api_list": {
+        "type": "list",
+        "description": "妖狐Api密钥",
+        "default": [0]
     }
 }

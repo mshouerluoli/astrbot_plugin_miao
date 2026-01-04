@@ -1,64 +1,76 @@
-# astrbot_plugin_miao
+# Miao 插件（astrbot_plugin_miao）
 
-`astrbot_plugin_miao` 是为 AstrBot 编写的插件示例，提供自动点赞、群打卡、前瞻兑换码查询、伪造聊天记录示例和“胡桃+链接”检测提醒等功能。
+一个轻量的 AstrBot 插件，提供每日群打卡、批量点赞、前瞻兑换码抓取（附图）、TTS 语音生成、伪造聊天节点演示、以及检测“胡桃 + 链接”的管理员提醒等功能。
 
-## 功能概览
+## 主要功能
 
-- 捕获 `aiocqhttp` 平台的机器人实例以调用 API（`send_group_sign`、`send_private_msg` 等）。
-- 定时任务：每天 00:00 执行一次“打卡 + 点赞”任务并将结果通知管理员（若配置）。
-- 支持以下命令/触发器：
-  - 命令：`前瞻兑换码 <游戏名>` — 查询并返回前瞻兑换码内容与封面图片。
-  - 命令：`伪造聊天记录 <QQ> <昵称> <内容>` — 返回一条伪造的消息节点（仅演示用途）。
-  - 正则触发：`^赞我$` — 给发送者执行点赞流程（有重试、限额与错误处理）。
-  - 正则触发：包含“胡桃”且包含 `http` 的消息 — At 配置中的 QQ 并回复提示（使用 `HuTao_config`）。
+- 每日群打卡与批量点赞（定时任务，默认在每天 `00:00` 执行）
+- 批量为指定 QQ 号自动点赞（内部实现轮询调用机器人 `send_like`）
+- 抓取 Bilibili 前瞻兑换码并附带封面图
+- 根据第三方 TTS 接口生成语音并返回音频记录（`Record.fromURL`）
+- 伪造聊天记录节点（用于演示）
+- 监听包含“胡桃”且带 `http` 的消息并提醒管理员
 
-## 核心实现文件
+## 安装
 
-- `main.py` — 插件主入口，注册 `MiaoPlugin`，包含命令注册、事件监听、定时任务与点赞逻辑。
+将本插件目录放入 AstrBot 的 `data/plugins/` 下，确保目录名为 `astrbot_plugin_miao`，重启 AstrBot 或通过插件管理加载该插件。
 
-主要类/方法：
-- `MiaoPlugin`（注册名 `astrbot_plugin_miao`）
-  - `initialize`：初始化并启动 `AsyncIOScheduler`。
-  - `投递任务`：注册定时任务（当前为每日 cron 任务）。
-  - `打卡任务`：遍历机器人群列表并调用 `send_group_sign`。
-  - `点赞任务`：读取配置 `send_like_list`，批量对列表中 QQ 执行点赞。
-  - `_like_single_user` / `_execute_like_for_user`：点赞实现，包含错误与限额处理。
-  - `_capture_bot_instance`：在接收到消息事件时捕获 `aiocqhttp` 平台的 bot 实例。
-
-## 配置示例
-
-在 AstrBot 的配置中为该插件添加配置节，例如：
-
-```toml
-[PluginConfig.astrbot_plugin_miao]
-Master = 123456789       # 管理员 QQ，用于接收每日任务结果（可选）
-send_like_list = [11111111, 22222222]  # 批量点赞目标 QQ 列表（可选）
-HuTao_config = 987654321 # 发现“胡桃+链接”时要 At 的 QQ（可选）
+示例目录：
+```
+data/plugins/astrbot_plugin_miao/
+  ├─ main.py
+  └─ README.md
 ```
 
-说明：
-- `Master`：若配置则每日任务结束后会把执行结果私信该 QQ。
-- `send_like_list`：为空或未配置则跳过批量点赞任务。
-- `HuTao_config`：指定被 At 的 QQ，用于检测到“胡桃+链接”的消息时提醒。
+## 配置项（在插件或总配置中）
 
-## 使用方法
+- `Master`：管理员 QQ（用于接收任务通知与控制保护），默认 `0` 表示未设置
+- `send_like_list`：要自动点赞的 QQ 列表（数组），例如 `["12345678", "87654321"]`
+- `yaohud_Api_list`：妖狐 TTS 服务的 API key 列表（数组），用于 `生成语音` 命令
+- `HuTao_config`：收到“胡桃 + 链接”时要 @ 的管理员 QQ（若为 `0` 则不提醒）
 
-1. 将插件目录（`astrbot_plugin_miao`）放入 AstrBot 插件目录 `data/plugins/`。
-2. 在 Bot 配置中加入或修改插件配置项（如上示例）。
-3. 启动或重启 AstrBot。插件在接收到事件后可自动捕获 `aiocqhttp` 的 `bot` 实例。
-4. 可通过聊天发送命令触发功能或等待每日定时任务执行。
+注意：配置键名与插件内使用的键一致，请在 AstrBot 的配置文件中按需添加。
+
+## 可用命令与行为
+
+- `生成语音 <音色> <内容>`
+  - 示例：`生成语音 胡桃 你好`。
+  - 使用 `yaohud_Api_list` 中的 key 依次尝试请求 TTS 服务，成功后发送语音 `Record`。
+
+- `前瞻兑换码 <游戏名>`
+  - 示例：`前瞻兑换码 原神`。
+  - 从 Bilibili 搜索前瞻动态，匹配标题并返回兑换码文本及封面图。若未找到则返回失败提示。
+
+- `伪造聊天记录 <QQ号> <昵称> <内容>`
+  - 示例：`伪造聊天记录 12345678 小明 你好`。
+  - 会生成一个 `Node` 节点用于演示聊天记录（禁止伪造配置的 `Master` QQ）。
+
+- 私聊或群聊消息 `赞我`
+  - 会向发送者执行点赞操作（调用机器人接口），返回可读的回复文本。
+
+- 自动监听包含“胡桃”且包含 `http` 的消息（正则 `(?=.*胡桃)(?=.*http)`）
+  - 如果 `HuTao_config` 配置了管理员 QQ，会以 @ 的形式提醒管理员。
+
+## 定时任务
+
+插件在初始化时注册 APScheduler 的定时任务：
+
+- `每天任务`：每天 `00:00` 执行 `checkin_task` 和 `like_task`，会将执行结果发送给 `Master`（若配置）。
+
+## 依赖
+
+- `aiohttp`（用于异步 HTTP 请求）
+- `apscheduler`（用于定时任务）
+- AstrBot 平台的核心接口（`AstrBot`、`Star`、`filter` 等）
+
+请确保宿主环境已安装这些依赖并且插件运行在 AstrBot 支持的平台（例如 `aiocqhttp`）。
 
 ## 注意事项
 
-- 该插件使用 `apscheduler.schedulers.asyncio.AsyncIOScheduler`，运行环境需支持异步调度。
-- 点赞操作会多次调用 `send_like`，若平台有风控或权限限制，可能返回错误或被限制，插件包含基础异常处理与限额提示。
-- 请勿将 `伪造聊天记录` 用于骚扰或违法活动；仅用于演示/测试。
+- 该插件调用第三方 TTS 与 Bilibili 接口，网络请求可能失败或变更，出现异常时插件会记录日志。
+- `send_like` 等接口受平台限流与权限影响，实际点赞数量与结果可能受限制。
+- 请合理配置 `Master` 与 `send_like_list`，避免滥用接口造成账号风控。
 
-## 开发与扩展
+## 授权
 
-- 如需修改逻辑，可编辑 `main.py` 中对应方法（例如点赞策略、定时任务调度或前瞻兑换码接口）。
-- 若需支持其他平台（非 `aiocqhttp`），需在 `_capture_bot_instance` 中增加相应平台的检测与赋值逻辑。
-
----
-
-实现：`MiaoPlugin`（由 `register("astrbot_plugin_miao", "miao", ...)` 注册）
+该插件为个人/社区插件，遵循项目中整体的授权条款。请在需要分发时保留原作者信息。

@@ -263,22 +263,6 @@ class MiaoPlugin(Star):
             except ImportError:
                 logger.warning(f"[Miao] 无法导入 AiocqhttpMessageEvent")
 
-         # 捕获管理员ID
-        # if self.admin_user_id is None and event.is_admin():
-        #     self.admin_user_id = event.get_sender_id()
-        #     self._save_data()
-        #     logger.info(f"[GroupSignin] 已记录管理员ID: {self.admin_user_id}")
-
-
-    # 注册指令的装饰器。指令名为 helloworld。注册成功后，发送 `/helloworld` 就会触发这个指令，并回复 `你好, {user_name}!`
-    # @filter.command("helloworld")
-    # async def helloworld(self, event: AstrMessageEvent):
-    #     """这是一个 hello world 指令""" # 这是 handler 的描述，将会被解析方便用户了解插件内容。建议填写。
-    #     user_name = event.get_sender_name()
-    #     message_str = event.message_str # 用户发的纯文本消息字符串
-    #     message_chain = event.get_messages() # 用户所发的消息的消息链 # from astrbot.api.message_components import *
-    #     logger.info(message_chain)
-    #     yield event.plain_result(f"Hello, {user_name}, 你发了 {message_str}!") # 发送一条纯文本消息
     
     async def _execute_like_for_user(self, client, user_id: str) -> tuple[int, str]:
         # 点赞数到达上限回复
@@ -389,64 +373,8 @@ class MiaoPlugin(Star):
         
         result = await self._like_single_user(client, sender_id, username)
         
-        # 简化回复，只保留点赞结果
         yield event.plain_result(result)
 
-
-    # @filter.regex(r"^打卡$")
-    # async def 打卡(self, event: AstrMessageEvent):
-    #     """测试机器人的打卡"""
-    #     try:
-    #         bot = self.bot_instance
-    #         group_list = await bot.get_group_list()
-        
-    #         if not group_list:
-    #             logger.error("未找到任何群组")
-    #             return
-        
-    #         # 初始化输出
-    #         out = f"📋 打卡结果（共 {len(group_list)} 个群组）:\n\n"
-    #         success_count = 0
-    #         fail_count = 0
-        
-    #         for group in group_list:
-    #             group_id = group['group_id']
-    #             group_name = group['group_name']
-            
-    #             try:
-    #                 await bot.api.call_action(
-    #                     'send_group_sign',
-    #                     group_id=str(group_id)
-    #                 )
-    #                 out += f"✅ 群号: {group_id}, 群名: {group_name}\n"
-    #                 success_count += 1
-                
-    #             except Exception as e:
-    #                 error_msg = str(e)
-    #                 out += f"❌ 群号: {group_id}, 群名: {group_name}\n   原因: {error_msg}\n"
-    #                 fail_count += 1
-        
-    #         # 添加统计信息
-    #         out += f"\n📊 统计：成功 {success_count} 个，失败 {fail_count} 个"
-        
-    #         # 发送给管理员
-    #         qq_value = self.config.get("Master", 0)
-    #         if qq_value != 0:
-    #             try:
-    #                 # 如果消息太长，进行截断
-    #                 if len(out) > 4000:
-    #                     out = out[:3900] + "\n...（消息过长已截断）"
-                    
-    #                 await bot.api.call_action(
-    #                     'send_private_msg',
-    #                     user_id=str(qq_value),
-    #                     message=out
-    #                 )
-    #                 logger.info(f"[打卡] 已发送通知给管理员 {qq_value}")
-    #             except Exception as e:
-    #                 logger.error(f"[打卡] 发送通知失败: {e}")
-    #     except Exception as e:
-    #         logger.error(f"[打卡] 处理出错: {e}")
 
     @filter.regex(r'(?=.*胡桃)(?=.*http)')
     async def Hutao(self, event: AstrMessageEvent):
@@ -466,10 +394,10 @@ class MiaoPlugin(Star):
             code, cover = await get_preview_redeem_code(game_name)
             if code:
                     lines = code.rstrip().split('\n')
-                    lines[-1] = "By 你的影月月" #替换最后一行的url
+                    lines[-1] = "By 你的影月月"
                     code = '\n'.join(lines)
                     chain = [
-                        Comp.Image.fromURL(cover), # 从 URL 发送图片
+                        Comp.Image.fromURL(cover),
                         Comp.Plain(code)
                     ]
                     yield event.chain_result(chain)
@@ -478,7 +406,7 @@ class MiaoPlugin(Star):
         else:
             yield event.plain_result("参数不足！正确格式：前瞻兑换码 游戏名")
         
-    @filter.command("伪造聊天记录")#伪造聊天记录 2824779102 喵帕斯 123
+    @filter.command("伪造聊天记录")
     async def fake_chat_record(self, event: AstrMessageEvent, QQ:int, Nice:str, txt:str):
         """格式：伪造聊天记录 QQ号 昵称 内容"""
         qq_value = self.config.get("Master", 0)

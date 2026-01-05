@@ -1,3 +1,4 @@
+from aiohttp.helpers import IS_MACOS
 from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger,AstrBotConfig
@@ -19,7 +20,7 @@ from typing import Optional, Dict, Any
 import tempfile
 import wave
 from pydub import AudioSegment
-
+import aiofiles
 
 def get_badge_text(item,a:str):
     """安全地从 item 中提取 badge_text"""
@@ -146,7 +147,150 @@ async def tts(
     
     return result
 
+async def kurobbs_login(mobile, code):
+    """
+    库街区登录函数（异步版本）
+    
+    Args:
+        mobile (int): 手机号码，11位数字
+        code (int/str): 验证码，数字格式
+        session (aiohttp.ClientSession, optional): 可复用的会话对象
+        
+    Returns:
+        dict: 包含响应结果和数据的字典
+    """
+    url = 'https://api.kurobbs.com/user/sdkLogin'
 
+    headers = {
+        'osversion': 'Android',
+        'devcode': '2fba3859fe9bfe9099f2696b8648c2c6',
+        'distinct_id': '765485e7-30ce-4496-9a9c-a2ac1c03c02c',
+        'countrycode': 'CN',
+        'ip': '10.0.2.233',
+        'model': '2211133C',
+        'source': 'android',
+        'lang': 'zh-Hans',
+        'version': '1.0.9',
+        'versioncode': '1090',
+        'content-type': 'application/x-www-form-urlencoded',
+        'accept-encoding': 'gzip',
+        'user-agent': 'okhttp/3.10.0',
+    }
+
+    data = {
+        'code': code,
+        'devCode': '2fba3859fe9bfe9099f2696b8648c2c6',
+        'gameList': '',
+        'mobile': mobile
+    }
+    session = aiohttp.ClientSession()
+    try:
+        async with session.post(url, headers=headers, data=data, timeout=aiohttp.ClientTimeout(total=10)) as response:
+            
+            return await response.json()
+            
+    except asyncio.TimeoutError:
+        return {
+            'success': False,
+            'code': None,
+            'data': None,
+            'msg': '请求超时，请检查网络连接'
+        }
+    except aiohttp.ClientConnectionError:
+        return {
+            'success': False,
+            'code': None,
+            'data': None,
+            'msg': '网络连接错误，请检查网络'
+        }
+    except aiohttp.ClientError as error:
+        return {
+            'success': False,
+            'code': None,
+            'data': None,
+            'msg': f'客户端错误: {error}'
+        }
+    except Exception as error:
+        return {
+            'success': False,
+            'code': None,
+            'data': None,
+            'msg': f'未知错误: {error}'
+        }
+async def kurobbs_sign(
+    token: str,
+    role_id: int,
+    user_id: int,
+    devcode: str = "1",
+):
+    """
+    库街区签到功能（异步版本）
+    
+    Args:
+        token (str): 用户认证token
+        role_id (int): 角色ID
+        user_id (int): 用户ID
+        devcode (str): 设备代码，默认为"1"
+        game_id (int): 游戏ID，默认为3
+        server_id (str): 服务器ID，默认为固定的值
+        session (aiohttp.ClientSession, optional): 可复用的会话对象
+    
+    Returns:
+        Dict[str, Any]: 包含签到结果的字典
+    """
+    # 获取当前月份
+    current_month = datetime.now().strftime('%m')
+    
+    url = 'https://api.kurobbs.com/encourage/signIn/v2'
+    
+    headers = {
+        'pragma': 'no-cache',
+        'cache-control': 'no-cache',
+        'accept': 'application/json, text/plain, */*',
+        'source': 'android',
+        'user-agent': 'Mozilla/5.0 (Linux; Android 13; 2211133C Build/TKQ1.220905.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/114.0.5735.131 Mobile Safari/537.36 Kuro/1.0.9 KuroGameBox/1.0.9',
+        'token': token,
+        'content-type': 'application/x-www-form-urlencoded',
+        'origin': 'https://web-static.kurobbs.com',
+        'x-requested-with': 'com.kurogame.kjq',
+        'sec-fetch-site': 'same-site',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-dest': 'empty',
+        'accept-encoding': 'gzip, deflate, br',
+        'accept-language': 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+        "devcode": devcode
+    }
+    game_id: int = 3
+    server_id: str = '76402e5b20be2c39f095a152090afddc'
+    data = {
+        'gameId': game_id,
+        'serverId': server_id,
+        'roleId': role_id,
+        'reqMonth': current_month,
+        'userId': user_id
+    }
+
+    session = aiohttp.ClientSession()
+    
+    try:
+        async with session.post(
+            url, 
+            headers=headers, 
+            data=data, 
+            timeout=aiohttp.ClientTimeout(total=10)
+        ) as response:
+            return await response.json()
+
+    except asyncio.TimeoutError:
+        return None
+    except aiohttp.ClientConnectionError:
+        return None
+    except aiohttp.ClientError as e:
+         return None
+    except Exception as e:
+         return None
+
+    return None
 
 async def fetch_gacha_pool():
     """获取原神祈愿池数据"""
@@ -182,7 +326,75 @@ async def fetch_gacha_pool():
     except Exception as e:
         logger.info(f"其他错误: {e}")
         return []
-
+async def fetch_role_list(
+    token: str,
+    game_id: int = 3,
+    ):
+    """
+    获取角色列表
+    
+    Args:
+        token: 用户认证token
+        game_id: 游戏ID，默认为3
+        timeout: 请求超时时间，默认为30秒
+        
+    Returns:
+        响应的JSON数据字典
+        
+    Raises:
+        aiohttp.ClientError: 网络请求错误
+        asyncio.TimeoutError: 请求超时
+        json.JSONDecodeError: JSON解析错误
+    """
+    url = 'https://api.kurobbs.com/user/role/findRoleList'
+    
+    headers = {
+        'osversion': 'Android',
+        'devcode': '2fba3859fe9bfe9099f2696b8648c2c6',
+        'countrycode': 'CN',
+        'ip': '10.0.2.233',
+        'model': '2211133C',
+        'source': 'android',
+        'lang': 'zh-Hans',
+        'version': '1.0.9',
+        'versioncode': '1090',
+        'token': token,
+        'content-type': 'application/x-www-form-urlencoded; charset=utf-8',
+        'accept-encoding': 'gzip',
+        'user-agent': 'okhttp/3.10.0',
+    }
+    
+    data = {
+        'gameId': game_id
+    }
+    
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.post(
+                url,
+                headers=headers,
+                data=data,
+                timeout=aiohttp.ClientTimeout(total=30)
+            ) as response:
+                
+                if response.status != 200:
+                    error_msg = f'请求错误: {response.status} {response.reason}'
+                    return {'code': 600, 'msg': error_msg}
+                
+                # 尝试解析JSON响应
+                try:
+                    return await response.json()
+    
+                except json.JSONDecodeError as e:
+                    error_msg = f'JSON 解析错误: {e}'
+                    return {'code': 500, 'msg': error_msg}
+                    
+        except asyncio.TimeoutError as e:
+            error_msg = f'请求超时: {e}'
+            return {'code': 400, 'msg': error_msg}
+        except aiohttp.ClientError as e:
+            error_msg = f'网络请求错误: {e}'
+            return {'code': 300, 'msg': error_msg}
 
 @register("astrbot_plugin_miao", "miao", "一个轻量 AstrBot 插件，支持每日群打卡与批量点赞、抓取前瞻兑换码并附图、生成演示聊天节点以及检测“胡桃 + 链接”并提醒管理员。", "v0.0.7")
 class MiaoPlugin(Star):
@@ -194,20 +406,84 @@ class MiaoPlugin(Star):
 
         self.scheduler = AsyncIOScheduler()
         self.scheduler.configure({"apscheduler.timezone": "Asia/Shanghai"})
-
+        self.kurobbs_path = ""
 
         logger.info(f"[Miao] bot_instance{self.bot_instance}")
-
-
-    async def is_Master(self,QQ_:int):
-        qq_value = self.config.get("Master", 0)
-        return QQ_ == qq_value
-
+    
     async def initialize(self):
         """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
         self.schedule_jobs()
         self.scheduler.start()
         logger.info("[Miao] APScheduler 定时任务")
+        self.kurobbs_path = os.path.join(os.getcwd(), "data", "plugins", "astrbot_plugin_miao", "kurobbs_token.json")
+        logger.info(f"[Miao] kurobbs_path {self.kurobbs_path}")
+
+        
+    async def kurobbs_save(self, event: AstrMessageEvent, kurobbs):
+            """库街区保存功能（异步版本）"""
+            file_path =  self.kurobbs_path
+            sender_id = event.get_sender_id()
+
+            try:
+                # 确保目录存在
+                os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            
+                # 读取现有数据（如果文件存在）
+                existing_data = {}
+                if os.path.exists(file_path):
+                    try:
+                        async with aiofiles.open(file_path, 'r', encoding='utf-8') as f:
+                            content = await f.read()
+                            existing_data = json.loads(content)
+                    except (json.JSONDecodeError, FileNotFoundError):
+                        existing_data = {}
+                existing_data[str(sender_id)] = kurobbs
+
+                async with aiofiles.open(file_path, 'w', encoding='utf-8') as f:
+                    await f.write(json.dumps(existing_data, ensure_ascii=False, indent=4))
+            
+                return True, "保存成功！"
+            
+            except Exception as e:
+                return False, f"保存失败: {str(e)}"
+    
+    async def kurobbs_load(self, sender_id:str):
+        """库街区读取功能（异步版本）"""
+        file_path = self.kurobbs_path
+
+        try:
+            if not os.path.exists(file_path):
+                return None
+            
+            async with aiofiles.open(file_path, 'r', encoding='utf-8') as f:
+                content = await f.read()
+                data = json.loads(content)
+            
+            # 根据sender_id返回对应的数据
+            return data.get(str(sender_id))
+            
+        except Exception as e:
+            return None
+    async def kurobbs_get_all_users(self):
+        """获取所有保存的sender_id列表（异步版本）"""
+        file_path = self.kurobbs_path
+        logger.info(f"[Miao] file_path {file_path} self.kurobbs_path {self.kurobbs_path}")
+        try:
+            if not os.path.exists(file_path):
+                return []
+        
+            async with aiofiles.open(file_path, 'r', encoding='utf-8') as f:
+                content = await f.read()
+                data = json.loads(content)
+            return list(data.keys())
+        
+        except Exception as e:
+            return []
+    
+    async def is_Master(self,QQ_:int):
+        qq_value = self.config.get("Master", 0)
+        return QQ_ == qq_value
+
 
 
     #定义每分钟的任务  
@@ -330,6 +606,7 @@ class MiaoPlugin(Star):
     async def daily_tasks(self, job=None):
           await self.checkin_task()
           await self.like_task()
+          await self.kuromi_sign_all()
 
 
 
@@ -368,6 +645,25 @@ class MiaoPlugin(Star):
             except ImportError:
                 logger.warning(f"[Miao] 无法导入 AiocqhttpMessageEvent")
 
+    async def get_qq_nickname(self, event: AstrMessageEvent,sender_id:int):
+        try:
+            user_info = await event.bot.get_stranger_info(user_id=int(sender_id))
+            username = user_info.get("nickname", "未知用户")
+        except Exception:
+            username = "未知用户"
+        return username
+    
+    async def get_qq_user_id(self, new_user: str):
+        try:
+            # 这个正则表达式可以匹配：
+            # 1. @任意字符(数字) -> 提取括号内的数字
+            # 2. [At:数字] -> 提取数字
+            # 3. 纯数字 -> 直接提取
+            match = re.search(r'(?:@[^(]+\(|\[At:)?(\d+)(?:\)|\])?', new_user)
+            user_id = int(match.group(1)) if match else 0
+        except (AttributeError, ValueError):
+            user_id = 0
+        return user_id
     
     async def _execute_like_for_user(self, client, user_id: str) -> tuple[int, str]:
         # 点赞数到达上限回复
@@ -612,28 +908,207 @@ class MiaoPlugin(Star):
         else:
             yield event.plain_result("参数不足！正确格式：前瞻兑换码 游戏名")
         
-    @filter.command("伪造聊天记录")
-    async def fake_chat_record(self, event: AstrMessageEvent, QQ:int, Nice:str, txt:str):
-        """格式：伪造聊天记录 QQ号 昵称 内容"""
-        qq_value = self.config.get("Master", 0)
 
-        if QQ!= qq_value:
-            if Nice:
-                if txt:
-                    node = Node(
-                        uin=QQ,
-                        name=Nice,
-                        content=[
-                            Plain(txt)
-                        ]
-                    )
-                    yield event.chain_result([node])
+
+    @filter.command("库街区登录")
+    async def kuromi_login(self, event: AstrMessageEvent, mobile: int, code:int):
+        """格式：库街区登录 手机号 验证码"""
+        # 检查参数
+        if not mobile or not code:
+            yield event.plain_result("参数不足！正确格式：库街区登录 手机号 验证码")
+            return
+    
+        # 验证手机号格式
+        if mobile == 0:
+            yield event.plain_result("手机号错误")
+            return
+    
+        # 验证验证码格式
+        if code <= 0:
+            yield event.plain_result("验证码格式错误")
+            return
+    
+        try:
+            # 调用登录函数
+            result = await kurobbs_login(mobile, code)
+        
+            if result.get("code", 0) == 200:
+
+                api_response = result.get("data", {})
+            
+
+                user_data = api_response.get("data", {})
+                user_info = []
+                user_name = user_data.get('userName')
+                if user_name:
+                    user_info.append(f"用户名: {user_name}")
+                gender = user_data.get('gender')
+                if gender is not None:
+                    gender_map = {0: '未知', 1: '男', 2: '女', 3: '保密'}
+                    gender_str = gender_map.get(gender, f'未知({gender})')
+                    user_info.append(f"性别: {gender_str}")
+                signature = user_data.get('signature')
+                if signature:
+                    user_info.append(f"签名: {signature}")
+
+                await self.kurobbs_save(event,result)
+                yield event.plain_result(f"✅ 登录成功！\n {user_info}" )
+
             else:
-                yield event.plain_result("参数不足！正确格式：伪造聊天记录 QQ号 昵称 内容")
+                # kurobbs_login函数返回失败（可能是网络错误等）
+                error_msg = result.get('msg', '未知错误')
+                msg = f"❌ 登录失败！原因: {error_msg}"
+                yield event.plain_result(msg)
+            
+        except Exception as e:
+            # 捕获其他异常
+            yield event.plain_result(f"❌ 登录过程中发生异常: {str(e)}")
+    @filter.command("库街区签到")
+    async def kuromi_sign(self, event: AstrMessageEvent):
+        """格式：库街区签到"""
+    
+        kurobbs_data = await self.kurobbs_load(event.get_sender_id())
+        if not kurobbs_data:
+            yield event.plain_result("❌ 未找到登录信息，请先使用“库街区登录 手机号 验证码”命令登录")
+            return
+        token =""
+        traceId=""
+        #yield event.plain_result(f"kurobbs_data: {kurobbs_data}")
+        code = kurobbs_data.get('code')
+        if code != 200:
+            yield event.plain_result(kurobbs_data.get('msg'))
+            return 
+        try:
+            token = kurobbs_data.get('data', {}).get('token')
+        except (KeyError, AttributeError):
+            token = None
+        if not token:
+            yield event.plain_result("❌ 未找到有效的登录Token，请重新登录")
+            return
+        sender_id = event.get_sender_id()
+        userId = kurobbs_data.get('data', {}).get('userId')
+        traceId = kurobbs_data.get('traceId')
+        role_list_data = await fetch_role_list(token)
+        roleId = None
+        try:
+            roleId = int(role_list_data['data'][0]['roleId'])
+        except (KeyError, IndexError, AttributeError, ValueError):
+            roleId = None
+
+        #yield event.plain_result(f"token: {token} roleId: {roleId} userId: {userId} traceId: {traceId}")
+        sign_data = await kurobbs_sign(token,roleId,userId,traceId)
+
+        code = sign_data.get("code")
+        if code == 200:
+            nodes_list = []
+            info_node = Node(
+                uin=sender_id,
+                name="库街区助手",
+                content=[Plain("📢 当前库街区签到信息 📢")]
+            )
+            nodes_list.append(info_node)
+            for item in sign_data['data']['todayList']:
+                content_parts = []
+                try:
+                    icon_url = item["goodsUrl"]
+                    content_parts.append(CompImage.fromURL(icon_url))
+            
+                    goodsNum = item.get("goodsNum", 0)
+                    content_parts.append(Plain(f"数量：{goodsNum}"))
+            
+                except Exception as e:
+                    content_parts.append(Plain(f"添加图片失败: {str(e)}\n"))
+                
+                node = Node(uin=sender_id, name="库街区助手", content=content_parts)
+                nodes_list.append(node)
+    
+            nodes = Nodes(nodes=nodes_list)
+            yield event.chain_result([nodes])
         else:
-            yield event.plain_result("不能伪造这个QQ号的聊天记录")
+            msg = sign_data.get("msg", "签到失败！")
+            yield event.plain_result(f"❌ {msg}")
+    
+    async def kuromi_sign_all(self):
+        kurobbs_all_users = await self.kurobbs_get_all_users()
+        for user_id in kurobbs_all_users:
+            logger.info(f"[Miao] kuromi_sign_all user_id:{user_id}")
+            kurobbs_data = await self.kurobbs_load(user_id)
+            try:
+                token = kurobbs_data.get('data', {}).get('token')
+            except (KeyError, AttributeError):
+                token = None
+            if not token:
+                await self.bot_instance.api.call_action('send_private_msg',user_id=str(user_id),message="❌ 未找到有效的登录Token，请重新登录" )
+                continue
+            role_list_data = await fetch_role_list(token)
+            roleId = None
+            try:
+                roleId = int(role_list_data['data'][0]['roleId'])
+            except (KeyError, IndexError, AttributeError, ValueError):
+                roleId = None
+            userId = kurobbs_data.get('data', {}).get('userId')
+            traceId = kurobbs_data.get('traceId')
+            sign_data = await kurobbs_sign(token,roleId,userId,traceId)
+            code = sign_data.get("code")
+            if code == 200:
+                content=[Plain("📢 当前库街区签到信息 📢")]
+
+                for item in sign_data['data']['todayList']:
+                    try:
+                        icon_url = item["goodsUrl"]
+                        content.append(CompImage.fromURL(icon_url))
+            
+                        goodsNum = item.get("goodsNum", 0)
+                        content.append(Plain(f"数量：{goodsNum}"))
+            
+                    except Exception as e:
+                        content.append(Plain(f"添加图片失败: {str(e)}\n"))
+
+                await self.bot_instance.api.call_action('send_private_msg',user_id=str(user_id),message=content)
+            else:
+                msg = sign_data.get("msg", "签到失败！")
+                await self.bot_instance.api.call_action('send_private_msg',user_id=str(user_id),message=f"{msg}")
 
 
+    @filter.event_message_type(filter.EventMessageType.ALL)
+    async def on_all_message(self, event: AstrMessageEvent):
+        '''监听所有消息并检测伪造消息请求'''
+        message_text = event.message_str
+    
+        if not message_text.startswith("伪造消息"):
+            return
+        content = message_text[4:].strip()
+        if not content:
+            yield event.plain_result("格式错误，请使用：伪造消息 QQ号 内容 | QQ号 内容 | ...")
+            return
+    
+        text_segments = content.split('|')
+        nodes_list = []
+    
+        for segment in text_segments:
+            segment = segment.strip()
+            if not segment:
+                continue
+        
+            text_segmentas = segment.split()
+            if len(text_segmentas) < 2:
+                yield event.plain_result(f"格式错误，缺少内容：{segment}")
+                return
+            userid = await self.get_qq_user_id(text_segmentas[0])
+            if await self.is_Master(userid):
+                continue
+            
+            nickname = await self.get_qq_nickname(event, userid)
+
+            info_node = Node(uin=userid,name=nickname,content=[Plain(text_segmentas[1])])
+            nodes_list.append(info_node)
+
+        if nodes_list:
+            nodes = Nodes(nodes=nodes_list)
+            yield event.chain_result([nodes])
+        else:
+            yield event.plain_result("未能解析出任何有效的消息节点")
+    
     async def terminate(self):
         """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""
         if self.scheduler.running:

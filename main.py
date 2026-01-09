@@ -14,7 +14,7 @@ import os
 import aiohttp
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from astrbot.core import FileTokenService
-from datetime import datetime
+from datetime import datetime, timedelta
 from astrbot.core.message.components import Record, File
 from typing import Optional, Dict, Any
 import tempfile
@@ -146,6 +146,97 @@ async def tts(
         result["msg"] = f"其他错误: {e}"
     
     return result
+
+async def get_silk_url(audio_url:str):
+    """
+    获取silk音频文件URL
+    
+    Returns:
+        str: 如果code=1则返回message中的URL，否则返回None
+    """
+    api_url = "https://oiapi.net/api/Mp32Silk"
+    encoded_url = urllib.parse.quote(audio_url, safe='/:?=&')
+    payload = {
+        "url": encoded_url,
+        "type": "json",
+        "format": "1"
+    }
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(api_url, json=payload, timeout=30) as response:
+                result = await response.json()
+                
+                # 检查code字段
+                code = result.get('code')
+                if code == 1:
+                    # 成功，返回message
+                    return result.get('message')
+                else:
+                    return None
+                    
+    except aiohttp.ClientError as e:
+        return None
+    except asyncio.TimeoutError:
+        return None
+    except Exception as e:
+        return None
+async def fetch_wangyi_music(search:str):
+    url = "https://node.api.xfabe.com/api/wangyi/search"
+    params = {
+        "search": search,  # 搜索关键词
+        "limit": 10           # 返回结果数量
+    }
+    
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(url, params=params) as response:
+                # 检查响应状态
+                if response.status == 200:
+                    # 解析JSON响应
+                    data = await response.json()
+
+                    return data
+                else:
+
+                    return None
+                    
+        except aiohttp.ClientError as e:
+            print(f"网络请求错误：{e}")
+        except Exception as e:
+            print(f"其他错误：{e}")
+async def get_song_url( song_id: int):
+    """获取歌曲URL"""
+    params = {"type": "json", "id": song_id}
+    base_url = "https://node.api.xfabe.com/api/wangyi/music"
+    async with aiohttp.ClientSession() as session:
+        try:
+            # 设置超时
+            timeout = aiohttp.ClientTimeout(total=30)
+                
+            async with session.get(base_url, params=params, timeout=timeout) as response:
+                response.raise_for_status()  # 如果状态码不是200，抛出异常
+                    
+                data = await response.json()
+                    
+                if data.get('code') != 200:
+                    raise None
+                    
+                song_data = data.get('data', {})
+                song_url = song_data.get('url')
+                    
+                if not song_url:
+                    raise None
+                    
+                # 返回URL和其他有用信息
+                return song_url
+                    
+        except aiohttp.ClientError as e:
+            return None
+        except asyncio.TimeoutError:
+            return None
+        except Exception as e:
+            return None
+
 
 async def kurobbs_login(mobile, code):
     """
@@ -396,13 +487,13 @@ async def fetch_role_list(
             error_msg = f'网络请求错误: {e}'
             return {'code': 300, 'msg': error_msg}
 
+
 @register("astrbot_plugin_miao", "miao", "一个轻量 AstrBot 插件，支持每日群打卡与批量点赞、抓取前瞻兑换码并附图、生成演示聊天节点以及检测“胡桃 + 链接”并提醒管理员。", "v0.0.7")
 class MiaoPlugin(Star):
     def __init__(self, context: Context,config: AstrBotConfig):
         super().__init__(context)
         self.config = config
         self.bot_instance = None
-
 
         self.scheduler = AsyncIOScheduler()
         self.scheduler.configure({"apscheduler.timezone": "Asia/Shanghai"})
@@ -414,6 +505,7 @@ class MiaoPlugin(Star):
         """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
         self.schedule_jobs()
         self.scheduler.start()
+
         logger.info("[Miao] APScheduler 定时任务")
         self.kurobbs_path = os.path.join(os.getcwd(), "data", "plugins", "astrbot_plugin_miao", "kurobbs_token.json")
         logger.info(f"[Miao] kurobbs_path {self.kurobbs_path}")
@@ -606,7 +698,7 @@ class MiaoPlugin(Star):
     async def daily_tasks(self, job=None):
           await self.checkin_task()
           await self.like_task()
-          await self.kuromi_sign_all()
+          #await self.kuromi_sign_all()
 
 
 
@@ -644,6 +736,8 @@ class MiaoPlugin(Star):
                     logger.info(f"[Miao] 成功捕获 aiocqhttp 机器人实例")
             except ImportError:
                 logger.warning(f"[Miao] 无法导入 AiocqhttpMessageEvent")
+
+
 
     async def get_qq_nickname(self, event: AstrMessageEvent,sender_id:int):
         try:
@@ -934,10 +1028,8 @@ class MiaoPlugin(Star):
         
             if result.get("code", 0) == 200:
 
-                api_response = result.get("data", {})
-            
 
-                user_data = api_response.get("data", {})
+                user_data = result.get("data", {})
                 user_info = []
                 user_name = user_data.get('userName')
                 if user_name:
@@ -1051,23 +1143,10 @@ class MiaoPlugin(Star):
             sign_data = await kurobbs_sign(token,roleId,userId,traceId)
             code = sign_data.get("code")
             if code == 200:
-                content=[Plain("📢 当前库街区签到信息 📢")]
-
-                for item in sign_data['data']['todayList']:
-                    try:
-                        icon_url = item["goodsUrl"]
-                        content.append(CompImage.fromURL(icon_url))
-            
-                        goodsNum = item.get("goodsNum", 0)
-                        content.append(Plain(f"数量：{goodsNum}"))
-            
-                    except Exception as e:
-                        content.append(Plain(f"添加图片失败: {str(e)}\n"))
-
-                await self.bot_instance.api.call_action('send_private_msg',user_id=str(user_id),message=content)
+                await self.bot_instance.api.call_action('send_private_msg',user_id=str(user_id),message=f"库街区: 签到成功")
             else:
                 msg = sign_data.get("msg", "签到失败！")
-                await self.bot_instance.api.call_action('send_private_msg',user_id=str(user_id),message=f"{msg}")
+                await self.bot_instance.api.call_action('send_private_msg',user_id=str(user_id),message=f"库街区: {msg}")
 
 
     @filter.event_message_type(filter.EventMessageType.ALL)

@@ -21,6 +21,7 @@ import tempfile
 import wave
 from pydub import AudioSegment
 import aiofiles
+from . import BiliBili
 
 def get_badge_text(item,a:str):
     """安全地从 item 中提取 badge_text"""
@@ -85,6 +86,15 @@ async def get_preview_redeem_code(gamename: str):
             continue
 
     return None, None
+
+def extract_b23_precisely(text):
+    """使用 lookaround 确保精确匹配"""
+    
+    pattern = r'(?<!\w)(?:https?://)?b23\.tv/[a-zA-Z0-9]{5,10}(?!\w)'
+    
+    matches = re.findall(pattern, text, re.IGNORECASE)
+    
+    return matches
 
 async def tts(
     text: str,
@@ -494,7 +504,7 @@ class MiaoPlugin(Star):
         super().__init__(context)
         self.config = config
         self.bot_instance = None
-
+        self.bilibili = BiliBili.Bilbili()
         self.scheduler = AsyncIOScheduler()
         self.scheduler.configure({"apscheduler.timezone": "Asia/Shanghai"})
         self.kurobbs_path = ""
@@ -898,16 +908,33 @@ class MiaoPlugin(Star):
     
 
 
-    @filter.regex(r'(?=.*胡桃)(?=.*http)')
+    @filter.regex(r'(?=.*https?://(?:www\.bilibili\.com|b23\.tv))')
     async def Hutao(self, event: AstrMessageEvent):
         """检测到胡桃链接回复""" 
-        qq_value = self.config.get("HuTao_config",0)
-        if qq_value !=0:
-            chain = [
-                Comp.At(qq=qq_value),
-                Comp.Plain("发现胡桃链接,嗷~"),
-            ]
-            yield event.chain_result(chain)
+        message_text = event.message_str
+        all_results = []
+        result = await self.bilibili.process_single_text(message_text)
+        if result:
+            all_results.append(result)
+            if result['tags']:
+                for tag in result['tags']:
+                    if "胡桃" in tag:
+                        qq_value = self.config.get("HuTao_config",0)
+                        if qq_value !=0:
+                            chain = [
+                                Comp.At(qq=qq_value),
+                                Comp.Plain("发现胡桃链接,嗷~"),
+                            ]
+                            yield event.chain_result(chain)
+                        break   
+
+        # qq_value = self.config.get("HuTao_config",0)
+        # if qq_value !=0:
+        #     chain = [
+        #         Comp.At(qq=qq_value),
+        #         Comp.Plain("发现胡桃链接,嗷~"),
+        #     ]
+        #     yield event.chain_result(chain)
 
     @filter.command("生成语音")
     async def generate_voice(self, event: AstrMessageEvent, Avatar: str, text: str):
